@@ -217,6 +217,11 @@ export async function createAndStartContainer(config: ContainerConfig): Promise<
       `${env.CLAUDE_AUTH_PATH}:/home/claudeuser/.claude`,
     ];
 
+    // Mount .claude.json config file (separate from .claude directory)
+    // Defaults to sibling of CLAUDE_AUTH_PATH (e.g., /root/.claude → /root/.claude.json)
+    const claudeConfigPath = env.CLAUDE_CONFIG_PATH || `${env.CLAUDE_AUTH_PATH}.json`;
+    volumeArgs.push('-v', `${claudeConfigPath}:/home/claudeuser/.claude.json`);
+
     // Mount shared pnpm store if configured
     if (env.PNPM_STORE_PATH) {
       volumeArgs.push('-v', `${env.PNPM_STORE_PATH}:/pnpm-store`);

@@ -4,7 +4,11 @@ import { resolve } from 'path';
 const envSchema = z.object({
   DATABASE_URL: z.string().default('file:./data/dev.db'),
   GITHUB_TOKEN: z.string().optional(),
+  // Path to the .claude directory containing credentials, history, etc.
   CLAUDE_AUTH_PATH: z.string().default('/root/.claude'),
+  // Path to the .claude.json config file (separate from .claude directory)
+  // Defaults to sibling of CLAUDE_AUTH_PATH (e.g., /root/.claude.json)
+  CLAUDE_CONFIG_PATH: z.string().optional(),
   // Path inside the container where data is mounted (for filesystem operations)
   DATA_DIR: z
     .string()
