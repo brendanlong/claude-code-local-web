@@ -574,13 +574,14 @@ The system maintains a cache of bare git repositories to speed up session creati
 - **Cache path format**: `/cache/{owner}--{repo}.git` (e.g., `/cache/brendanlong--clawed-abode.git`)
 - **How it works**:
   1. Before cloning, the system fetches the latest refs into the cached bare repo (or creates it if missing)
-  2. Clone uses `git clone --reference <cache-path> --dissociate` to share objects with the cache
-  3. The `--dissociate` flag ensures cloned repos are independent - they work even if the cache is deleted
+  2. Clone uses `git clone --reference <cache-path>` to share objects with the cache via alternates
+  3. Cloned repos reference the cache through `.git/objects/info/alternates` - they don't copy objects
 - **Benefits**:
-  - Subsequent sessions for the same repo only download new commits (typically a few MB instead of the full history)
+  - Subsequent sessions for the same repo are nearly instant (only checkout + alternates setup, no object copying)
   - First clone still works normally if caching fails
+  - Disk space savings - objects are shared across all clones of the same repo
 - **Git handles concurrent access**: Multiple fetches/clones can safely use the same cache
-- **Cleanup**: Old cached repos can be pruned by deleting files from the volume; sessions already cloned are unaffected
+- **Cleanup**: Since we control both cache and clones, the cache can be safely maintained. If the cache is deleted, existing clones will have broken references (but we don't delete the cache volume in normal operation)
 
 ### Podman Socket (Container-in-Container)
 

@@ -366,7 +366,7 @@ export async function cloneRepoInVolume(config: CloneConfig): Promise<CloneResul
 
     try {
       // Clone the repository, using --reference if cache is available
-      // --dissociate ensures the clone is independent even if the cache is deleted later
+      // Alternates are safe - the cache is managed by us and git handles concurrent access
       const cloneArgs = [
         'exec',
         containerId,
@@ -375,7 +375,7 @@ export async function cloneRepoInVolume(config: CloneConfig): Promise<CloneResul
         '--branch',
         config.branch,
         '--single-branch',
-        ...(useCache ? ['--reference', cachePath, '--dissociate'] : []),
+        ...(useCache ? ['--reference', cachePath] : []),
         repoUrl,
         repoName,
       ];
