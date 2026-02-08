@@ -52,9 +52,10 @@ The database schema is defined in [`prisma/schema.prisma`](../prisma/schema.pris
 - **Session**: Claude Code sessions tied to git clones (includes `agentPort` for the agent service)
 - **Message**: Chat messages with sequence numbers for cursor-based pagination
 - **AuthSession**: Login sessions with tokens and audit info
-- **RepoSettings**: Per-repository settings (favorites, env vars, MCP servers)
+- **RepoSettings**: Per-repository settings (favorites, env vars, MCP servers, skills)
 - **EnvVar**: Environment variables for a repository (encrypted if secret)
 - **McpServer**: MCP server configurations for a repository
+- **Skill**: Custom slash commands (skills) for a repository
 
 ### Session Archiving
 
@@ -471,6 +472,7 @@ Users can configure per-repository settings that are automatically applied when 
   - **Stdio**: Traditional command-based servers (e.g., `npx @anthropic/mcp-server-memory`)
   - **HTTP**: Streamable HTTP MCP servers with optional auth headers
   - **SSE**: Server-Sent Events MCP servers with optional auth headers
+- **Skills**: Custom slash commands that define instructions for Claude. Each skill creates a `/<name>` command that Claude can invoke. Skills are stored in the database and written to the container's filesystem (`~/.claude/skills/<name>/SKILL.md`) at query time. The skill content supports YAML frontmatter and markdown instructions, with `$ARGUMENTS` for passed arguments.
 
 **Secret Encryption**: Environment variables, MCP server env vars, and HTTP/SSE header values can be marked as "secret", which:
 

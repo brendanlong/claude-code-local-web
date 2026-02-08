@@ -1,7 +1,7 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import { MessageStore } from './message-store.js';
-import { QueryRunner, type QueryOptions } from './query-runner.js';
+import { QueryRunner, type QueryOptions, type SkillDefinition } from './query-runner.js';
 import type { SDKMessage, McpServerConfig, SlashCommand } from '@anthropic-ai/claude-agent-sdk';
 import type { PartialAssistantMessage } from './stream-accumulator.js';
 
@@ -59,6 +59,7 @@ async function handleQuery(req: http.IncomingMessage, res: http.ServerResponse):
     resume?: boolean;
     cwd?: string;
     mcpServers?: Record<string, McpServerConfig>;
+    skills?: SkillDefinition[];
   };
 
   if (!body.prompt || typeof body.prompt !== 'string') {
@@ -116,6 +117,7 @@ async function handleQuery(req: http.IncomingMessage, res: http.ServerResponse):
     model: CLAUDE_MODEL || undefined,
     cwd: body.cwd,
     mcpServers: body.mcpServers,
+    skills: body.skills,
   };
 
   try {

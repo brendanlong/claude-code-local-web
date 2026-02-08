@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { trpc } from '@/lib/trpc';
-import { Plus, Trash2, Eye, EyeOff, Star, FileText } from 'lucide-react';
+import { Plus, Trash2, Eye, EyeOff, Star, FileText, Wand2 } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -51,7 +51,9 @@ export function RepoSettingsEditor({ repoFullName, onClose }: RepoSettingsEditor
       <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
         <SheetHeader>
           <SheetTitle className="font-mono text-sm">{repoFullName}</SheetTitle>
-          <SheetDescription>Configure environment variables and MCP servers</SheetDescription>
+          <SheetDescription>
+            Configure environment variables, MCP servers, and skills
+          </SheetDescription>
         </SheetHeader>
 
         {isLoading ? (
@@ -100,6 +102,15 @@ export function RepoSettingsEditor({ repoFullName, onClose }: RepoSettingsEditor
             <McpServersSection
               repoFullName={repoFullName}
               mcpServers={data?.mcpServers ?? []}
+              onUpdate={refetch}
+            />
+
+            <Separator />
+
+            {/* Skills */}
+            <SkillsSection
+              repoFullName={repoFullName}
+              skills={data?.skills ?? []}
               onUpdate={refetch}
             />
           </div>
@@ -848,6 +859,238 @@ function McpServerForm({
         </Button>
         <Button type="submit" disabled={mutation.isPending}>
           {mutation.isPending ? <Spinner size="sm" /> : existingServer ? 'Update' : 'Add'}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+interface SkillData {
+  id: string;
+  name: string;
+  description: string;
+  content: string;
+}
+
+function SkillsSection({
+  repoFullName,
+  skills,
+  onUpdate,
+}: {
+  repoFullName: string;
+  skills: SkillData[];
+  onUpdate: () => void;
+}) {
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [deleteSkillName, setDeleteSkillName] = useState<string | null>(null);
+
+  const deleteMutation = trpc.repoSettings.deleteSkill.useMutation({
+    onSuccess: () => {
+      onUpdate();
+      setDeleteSkillName(null);
+    },
+  });
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Wand2 className="h-4 w-4 text-muted-foreground" />
+          <h3 className="font-medium">Skills</h3>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => setShowForm(true)}>
+          <Plus className="h-4 w-4 mr-1" />
+          Add
+        </Button>
+      </div>
+
+      <p className="text-sm text-muted-foreground">
+        Custom slash commands that Claude can use. Each skill defines a /
+        <span className="font-mono">name</span> command with instructions.
+      </p>
+
+      {skills.length === 0 && !showForm ? (
+        <p className="text-sm text-muted-foreground">No skills configured.</p>
+      ) : (
+        <ul className="space-y-2">
+          {skills.map((skill) => (
+            <li key={skill.id} className="flex items-center gap-2 p-2 rounded-md bg-muted/50">
+              <div className="flex-1 min-w-0">
+                <div className="font-mono text-sm">/{skill.name}</div>
+                {skill.description && (
+                  <div className="text-xs text-muted-foreground truncate">{skill.description}</div>
+                )}
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => setEditingId(skill.id)}>
+                Edit
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setDeleteSkillName(skill.name)}
+                className="text-destructive hover:text-destructive"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {(showForm || editingId) && (
+        <SkillForm
+          repoFullName={repoFullName}
+          existingSkill={editingId ? skills.find((s) => s.id === editingId) : undefined}
+          onClose={() => {
+            setShowForm(false);
+            setEditingId(null);
+          }}
+          onSuccess={() => {
+            setShowForm(false);
+            setEditingId(null);
+            onUpdate();
+          }}
+        />
+      )}
+
+      <AlertDialog
+        open={!!deleteSkillName}
+        onOpenChange={(open) => !open && setDeleteSkillName(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete skill?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will delete the skill <strong>/{deleteSkillName}</strong>.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() =>
+                deleteSkillName && deleteMutation.mutate({ repoFullName, name: deleteSkillName })
+              }
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+function SkillForm({
+  repoFullName,
+  existingSkill,
+  onClose,
+  onSuccess,
+}: {
+  repoFullName: string;
+  existingSkill?: SkillData;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [name, setName] = useState(existingSkill?.name ?? '');
+  const [description, setDescription] = useState(existingSkill?.description ?? '');
+  const [content, setContent] = useState(existingSkill?.content ?? '');
+  const [error, setError] = useState<string | null>(null);
+
+  const mutation = trpc.repoSettings.setSkill.useMutation({
+    onSuccess,
+    onError: (err) => setError(err.message),
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    if (!name) {
+      setError('Name is required');
+      return;
+    }
+
+    if (!name.match(/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/)) {
+      setError(
+        'Name must contain only lowercase letters, numbers, and hyphens, and cannot start or end with a hyphen'
+      );
+      return;
+    }
+
+    if (!content.trim()) {
+      setError('Content is required');
+      return;
+    }
+
+    mutation.mutate({
+      repoFullName,
+      skill: {
+        name,
+        description,
+        content: content.trim(),
+      },
+    });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4 p-4 border rounded-md">
+      <div className="space-y-2">
+        <Label htmlFor="skill-name">Name</Label>
+        <div className="flex items-center gap-1">
+          <span className="text-muted-foreground">/</span>
+          <Input
+            id="skill-name"
+            value={name}
+            onChange={(e) => setName(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+            placeholder="review-pr"
+            disabled={!!existingSkill}
+          />
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Lowercase letters, numbers, and hyphens only
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="skill-description">Description (optional)</Label>
+        <Input
+          id="skill-description"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Review a pull request and provide feedback"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="skill-content">Content (SKILL.md)</Label>
+        <Textarea
+          id="skill-content"
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          placeholder={`---
+description: What this skill does
+---
+
+Instructions for Claude when this skill is invoked...
+
+Use $ARGUMENTS for arguments passed to the skill.`}
+          className="min-h-[200px] font-mono text-sm"
+        />
+        <p className="text-xs text-muted-foreground">
+          Markdown content with optional YAML frontmatter. Use $ARGUMENTS for passed arguments.
+        </p>
+      </div>
+
+      {error && <p className="text-sm text-destructive">{error}</p>}
+
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="outline" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={mutation.isPending}>
+          {mutation.isPending ? <Spinner size="sm" /> : existingSkill ? 'Update' : 'Add'}
         </Button>
       </div>
     </form>

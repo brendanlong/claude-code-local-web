@@ -5,6 +5,9 @@ import {
   type McpServerConfig,
   type SlashCommand,
 } from '@anthropic-ai/claude-agent-sdk';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { homedir } from 'node:os';
 import { MessageStore } from './message-store.js';
 import { StreamAccumulator, type PartialAssistantMessage } from './stream-accumulator.js';
 
@@ -19,6 +22,15 @@ function getMessageType(message: SDKMessage): string {
 /**
  * Options for starting a new query.
  */
+/**
+ * A skill definition to be written to the filesystem before querying.
+ */
+export interface SkillDefinition {
+  name: string;
+  description: string;
+  content: string; // The SKILL.md content
+}
+
 export interface QueryOptions {
   prompt: string;
   sessionId: string;
@@ -32,6 +44,8 @@ export interface QueryOptions {
   cwd?: string;
   /** MCP server configurations */
   mcpServers?: Record<string, McpServerConfig>;
+  /** Skills to write to the filesystem and make available */
+  skills?: SkillDefinition[];
 }
 
 /**
@@ -119,6 +133,21 @@ export class QueryRunner {
   }
 
   /**
+   * Write skills to the user-level skills directory (~/.claude/skills/).
+   * Each skill gets its own directory with a SKILL.md file.
+   */
+  private writeSkillsToFilesystem(skills: SkillDefinition[]): void {
+    const skillsDir = join(homedir(), '.claude', 'skills');
+
+    for (const skill of skills) {
+      const skillDir = join(skillsDir, skill.name);
+      mkdirSync(skillDir, { recursive: true });
+      writeFileSync(join(skillDir, 'SKILL.md'), skill.content, 'utf-8');
+      console.log(`Wrote skill: ${skill.name} to ${skillDir}/SKILL.md`);
+    }
+  }
+
+  /**
    * Start a new query. Throws if a query is already running.
    * This method runs the query to completion and returns when done.
    */
@@ -180,8 +209,13 @@ export class QueryRunner {
         sdkOptions.mcpServers = options.mcpServers;
       }
 
-      // Load project settings (for CLAUDE.md)
-      sdkOptions.settingSources = ['project'];
+      // Write skills to filesystem before querying
+      if (options.skills?.length) {
+        this.writeSkillsToFilesystem(options.skills);
+      }
+
+      // Load project settings (for CLAUDE.md) and user settings (for skills)
+      sdkOptions.settingSources = ['project', 'user'];
 
       this.currentQuery = query({
         prompt: options.prompt,

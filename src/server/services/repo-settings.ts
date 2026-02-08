@@ -54,12 +54,22 @@ export type ContainerMcpServer =
   | ContainerSseMcpServer;
 
 /**
+ * Skill configuration for container
+ */
+export interface ContainerSkill {
+  name: string;
+  description: string;
+  content: string; // The SKILL.md content
+}
+
+/**
  * Repo settings ready for container creation
  */
 export interface ContainerRepoSettings {
   customSystemPrompt: string | null;
   envVars: ContainerEnvVar[];
   mcpServers: ContainerMcpServer[];
+  skills: ContainerSkill[];
 }
 
 /**
@@ -71,7 +81,7 @@ export async function getRepoSettingsForContainer(
 ): Promise<ContainerRepoSettings | null> {
   const settings = await prisma.repoSettings.findUnique({
     where: { repoFullName },
-    include: { envVars: true, mcpServers: true },
+    include: { envVars: true, mcpServers: true, skills: true },
   });
 
   if (!settings) {
@@ -128,9 +138,17 @@ export async function getRepoSettingsForContainer(
     } as ContainerStdioMcpServer;
   });
 
+  // Map skills (no decryption needed)
+  const skills: ContainerSkill[] = settings.skills.map((skill) => ({
+    name: skill.name,
+    description: skill.description,
+    content: skill.content,
+  }));
+
   return {
     customSystemPrompt: settings.customSystemPrompt,
     envVars,
     mcpServers,
+    skills,
   };
 }

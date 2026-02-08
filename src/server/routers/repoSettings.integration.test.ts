@@ -662,4 +662,202 @@ describe('repoSettings router', () => {
       expect(found?.customSystemPrompt).toBe(customPrompt);
     });
   });
+
+  describe('setSkill', () => {
+    it('should create a skill', async () => {
+      const caller = createCaller();
+
+      await caller.repoSettings.setSkill({
+        repoFullName: testRepoName,
+        skill: {
+          name: 'review-pr',
+          description: 'Review a pull request',
+          content: '---\ndescription: Review a PR\n---\n\nReview the PR and provide feedback.',
+        },
+      });
+
+      const settings = await caller.repoSettings.get({ repoFullName: testRepoName });
+      expect(settings?.skills).toHaveLength(1);
+      expect(settings?.skills[0].name).toBe('review-pr');
+      expect(settings?.skills[0].description).toBe('Review a pull request');
+      expect(settings?.skills[0].content).toContain('Review the PR');
+    });
+
+    it('should update an existing skill', async () => {
+      const caller = createCaller();
+
+      await caller.repoSettings.setSkill({
+        repoFullName: testRepoName,
+        skill: {
+          name: 'my-skill',
+          description: 'Initial description',
+          content: 'Initial content',
+        },
+      });
+
+      await caller.repoSettings.setSkill({
+        repoFullName: testRepoName,
+        skill: {
+          name: 'my-skill',
+          description: 'Updated description',
+          content: 'Updated content',
+        },
+      });
+
+      const settings = await caller.repoSettings.get({ repoFullName: testRepoName });
+      expect(settings?.skills).toHaveLength(1);
+      expect(settings?.skills[0].description).toBe('Updated description');
+      expect(settings?.skills[0].content).toBe('Updated content');
+    });
+
+    it('should reject invalid skill names', async () => {
+      const caller = createCaller();
+
+      await expect(
+        caller.repoSettings.setSkill({
+          repoFullName: testRepoName,
+          skill: {
+            name: 'Invalid Name',
+            description: '',
+            content: 'content',
+          },
+        })
+      ).rejects.toThrow();
+    });
+
+    it('should reject skill names starting with a hyphen', async () => {
+      const caller = createCaller();
+
+      await expect(
+        caller.repoSettings.setSkill({
+          repoFullName: testRepoName,
+          skill: {
+            name: '-invalid',
+            description: '',
+            content: 'content',
+          },
+        })
+      ).rejects.toThrow();
+    });
+
+    it('should reject empty content', async () => {
+      const caller = createCaller();
+
+      await expect(
+        caller.repoSettings.setSkill({
+          repoFullName: testRepoName,
+          skill: {
+            name: 'empty-content',
+            description: '',
+            content: '',
+          },
+        })
+      ).rejects.toThrow();
+    });
+
+    it('should create settings if they do not exist', async () => {
+      const caller = createCaller();
+
+      await caller.repoSettings.setSkill({
+        repoFullName: 'new/skill-repo',
+        skill: {
+          name: 'test-skill',
+          description: '',
+          content: 'Test skill content',
+        },
+      });
+
+      const settings = await caller.repoSettings.get({ repoFullName: 'new/skill-repo' });
+      expect(settings?.skills).toHaveLength(1);
+    });
+  });
+
+  describe('deleteSkill', () => {
+    it('should delete a skill', async () => {
+      const caller = createCaller();
+
+      await caller.repoSettings.setSkill({
+        repoFullName: testRepoName,
+        skill: {
+          name: 'to-delete',
+          description: '',
+          content: 'Will be deleted',
+        },
+      });
+
+      await caller.repoSettings.deleteSkill({
+        repoFullName: testRepoName,
+        name: 'to-delete',
+      });
+
+      const settings = await caller.repoSettings.get({ repoFullName: testRepoName });
+      expect(settings?.skills).toHaveLength(0);
+    });
+
+    it('should not fail when deleting a non-existent skill', async () => {
+      const caller = createCaller();
+
+      // Create settings first
+      await caller.repoSettings.toggleFavorite({
+        repoFullName: testRepoName,
+        isFavorite: true,
+      });
+
+      await expect(
+        caller.repoSettings.deleteSkill({
+          repoFullName: testRepoName,
+          name: 'nonexistent',
+        })
+      ).resolves.toEqual({ success: true });
+    });
+  });
+
+  describe('skills in getForContainer', () => {
+    it('should include skills in container settings', async () => {
+      const caller = createCaller();
+
+      await caller.repoSettings.setSkill({
+        repoFullName: testRepoName,
+        skill: {
+          name: 'deploy',
+          description: 'Deploy the application',
+          content: 'Run the deploy script and verify.',
+        },
+      });
+
+      const result = await caller.repoSettings.getForContainer({ repoFullName: testRepoName });
+      expect(result?.skills).toHaveLength(1);
+      expect(result?.skills[0].name).toBe('deploy');
+      expect(result?.skills[0].description).toBe('Deploy the application');
+      expect(result?.skills[0].content).toBe('Run the deploy script and verify.');
+    });
+  });
+
+  describe('skills in listWithSettings', () => {
+    it('should include skill count', async () => {
+      const caller = createCaller();
+
+      await caller.repoSettings.setSkill({
+        repoFullName: testRepoName,
+        skill: {
+          name: 'skill1',
+          description: '',
+          content: 'Skill 1 content',
+        },
+      });
+
+      await caller.repoSettings.setSkill({
+        repoFullName: testRepoName,
+        skill: {
+          name: 'skill2',
+          description: '',
+          content: 'Skill 2 content',
+        },
+      });
+
+      const result = await caller.repoSettings.listWithSettings();
+      const found = result.settings.find((s) => s.repoFullName === testRepoName);
+      expect(found?.skillCount).toBe(2);
+    });
+  });
 });

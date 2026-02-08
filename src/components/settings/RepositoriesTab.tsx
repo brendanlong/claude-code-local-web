@@ -45,8 +45,8 @@ export function RepositoriesTab() {
         <CardHeader>
           <CardTitle>Repository Settings</CardTitle>
           <CardDescription>
-            Configure per-repository favorites, environment variables, and MCP servers. These
-            settings are applied when creating new sessions for the repository.
+            Configure per-repository favorites, environment variables, MCP servers, and skills.
+            These settings are applied when creating new sessions for the repository.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -65,10 +65,13 @@ export function RepositoriesTab() {
                     )}
                     <span className="font-mono text-sm truncate">{setting.repoFullName}</span>
                     <span className="text-xs text-muted-foreground shrink-0">
-                      {setting.envVarCount > 0 && `${setting.envVarCount} env vars`}
-                      {setting.envVarCount > 0 && setting.mcpServerCount > 0 && ', '}
-                      {setting.mcpServerCount > 0 && `${setting.mcpServerCount} MCP servers`}
-                      {setting.envVarCount === 0 && setting.mcpServerCount === 0 && 'No settings'}
+                      {[
+                        setting.envVarCount > 0 ? `${setting.envVarCount} env vars` : null,
+                        setting.mcpServerCount > 0 ? `${setting.mcpServerCount} MCP servers` : null,
+                        setting.skillCount > 0 ? `${setting.skillCount} skills` : null,
+                      ]
+                        .filter(Boolean)
+                        .join(', ') || 'No settings'}
                     </span>
                   </div>
                   <div className="flex items-center gap-1">

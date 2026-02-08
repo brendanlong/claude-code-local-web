@@ -98,6 +98,7 @@ export interface AgentClient {
     resume?: boolean;
     cwd?: string;
     mcpServers?: Record<string, unknown>;
+    skills?: Array<{ name: string; description: string; content: string }>;
   }): AsyncGenerator<AgentStreamEvent>;
 
   /**
@@ -214,6 +215,7 @@ export function createAgentClient(socketPath: string): AgentClient {
           resume: options.resume ?? false,
           cwd: options.cwd,
           mcpServers: options.mcpServers,
+          skills: options.skills,
         })
       );
 

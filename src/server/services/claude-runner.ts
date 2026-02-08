@@ -232,6 +232,12 @@ export interface RunClaudeCommandOptions {
     | { name: string; type: 'http'; url: string; headers?: Record<string, string> }
     | { name: string; type: 'sse'; url: string; headers?: Record<string, string> }
   >;
+  /** Skills (slash commands) to make available to the agent */
+  skills?: Array<{
+    name: string;
+    description: string;
+    content: string;
+  }>;
 }
 
 /**
@@ -368,6 +374,7 @@ export async function runClaudeCommand(options: RunClaudeCommandOptions): Promis
       resume: shouldResume,
       cwd: workingDir,
       mcpServers: mcpServersRecord,
+      skills: options.skills,
     })) {
       // Handle commands update - emit via SSE for frontend autocomplete
       if (agentEvent.kind === 'commands') {

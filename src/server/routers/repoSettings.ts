@@ -53,6 +53,21 @@ const mcpServerHttpSchema = z.object({
 
 const mcpServerSchema = z.discriminatedUnion('type', [mcpServerStdioSchema, mcpServerHttpSchema]);
 
+const skillNameSchema = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/, {
+    message:
+      'Skill name must contain only lowercase letters, numbers, and hyphens, and cannot start or end with a hyphen',
+  });
+
+const skillSchema = z.object({
+  name: skillNameSchema,
+  description: z.string().max(500).default(''),
+  content: z.string().min(1).max(50000),
+});
+
 /**
  * Mask secret values for display
  */
@@ -97,7 +112,7 @@ export const repoSettingsRouter = router({
     .query(async ({ input }) => {
       const settings = await prisma.repoSettings.findUnique({
         where: { repoFullName: input.repoFullName },
-        include: { envVars: true, mcpServers: true },
+        include: { envVars: true, mcpServers: true, skills: true },
       });
 
       if (!settings) {
@@ -132,6 +147,12 @@ export const repoSettingsRouter = router({
           headers: mcp.headers
             ? maskMcpEnv(JSON.parse(mcp.headers) as Record<string, McpServerEnvValue>)
             : {},
+        })),
+        skills: settings.skills.map((skill) => ({
+          id: skill.id,
+          name: skill.name,
+          description: skill.description,
+          content: skill.content,
         })),
       };
     }),
@@ -216,6 +237,7 @@ export const repoSettingsRouter = router({
       include: {
         envVars: { select: { id: true, name: true, isSecret: true } },
         mcpServers: { select: { id: true, name: true } },
+        skills: { select: { id: true, name: true } },
       },
       orderBy: [{ isFavorite: 'desc' }, { updatedAt: 'desc' }],
     });
@@ -228,8 +250,10 @@ export const repoSettingsRouter = router({
         customSystemPrompt: s.customSystemPrompt,
         envVarCount: s.envVars.length,
         mcpServerCount: s.mcpServers.length,
+        skillCount: s.skills.length,
         envVars: s.envVars,
         mcpServers: s.mcpServers,
+        skills: s.skills,
         updatedAt: s.updatedAt,
       })),
     };
@@ -421,6 +445,80 @@ export const repoSettingsRouter = router({
     }),
 
   /**
+   * Set (create or update) a skill
+   */
+  setSkill: protectedProcedure
+    .input(
+      z.object({
+        repoFullName: repoFullNameSchema,
+        skill: skillSchema,
+      })
+    )
+    .mutation(async ({ input }) => {
+      // Ensure RepoSettings exists
+      const settings = await prisma.repoSettings.upsert({
+        where: { repoFullName: input.repoFullName },
+        create: { repoFullName: input.repoFullName },
+        update: {},
+      });
+
+      await prisma.skill.upsert({
+        where: {
+          repoSettingsId_name: {
+            repoSettingsId: settings.id,
+            name: input.skill.name,
+          },
+        },
+        create: {
+          repoSettingsId: settings.id,
+          name: input.skill.name,
+          description: input.skill.description,
+          content: input.skill.content,
+        },
+        update: {
+          description: input.skill.description,
+          content: input.skill.content,
+        },
+      });
+
+      log.info('Set skill', {
+        repoFullName: input.repoFullName,
+        name: input.skill.name,
+      });
+
+      return { success: true };
+    }),
+
+  /**
+   * Delete a skill
+   */
+  deleteSkill: protectedProcedure
+    .input(
+      z.object({
+        repoFullName: repoFullNameSchema,
+        name: skillNameSchema,
+      })
+    )
+    .mutation(async ({ input }) => {
+      const settings = await prisma.repoSettings.findUnique({
+        where: { repoFullName: input.repoFullName },
+      });
+
+      if (settings) {
+        await prisma.skill.deleteMany({
+          where: {
+            repoSettingsId: settings.id,
+            name: input.name,
+          },
+        });
+
+        log.info('Deleted skill', { repoFullName: input.repoFullName, name: input.name });
+      }
+
+      return { success: true };
+    }),
+
+  /**
    * Get the decrypted value of a secret environment variable
    * Used when user clicks "reveal" button in UI
    */
@@ -480,7 +578,7 @@ export const repoSettingsRouter = router({
     .query(async ({ input }) => {
       const settings = await prisma.repoSettings.findUnique({
         where: { repoFullName: input.repoFullName },
-        include: { envVars: true, mcpServers: true },
+        include: { envVars: true, mcpServers: true, skills: true },
       });
 
       if (!settings) {
@@ -529,6 +627,11 @@ export const repoSettingsRouter = router({
             ),
           };
         }),
+        skills: settings.skills.map((skill) => ({
+          name: skill.name,
+          description: skill.description,
+          content: skill.content,
+        })),
       };
     }),
 });

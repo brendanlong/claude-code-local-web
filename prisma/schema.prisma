@@ -54,7 +54,7 @@ model Message {
   @@index([sessionId, sequence])
 }
 
-// Per-repository settings for favorites, env vars, and MCP servers
+// Per-repository settings for favorites, env vars, MCP servers, and skills
 model RepoSettings {
   id                 String   @id @default(uuid())
   repoFullName       String   @unique // e.g., "owner/repo"
@@ -66,6 +66,7 @@ model RepoSettings {
 
   envVars    EnvVar[]
   mcpServers McpServer[]
+  skills     Skill[]
 
   @@index([isFavorite])
 }
@@ -97,6 +98,22 @@ model McpServer {
   env            String? // For stdio: JSON object: { "KEY": { "value": "...", "isSecret": true } }
   url            String? // For http/sse: server URL
   headers        String? // For http/sse: JSON object of headers, { "KEY": { "value": "...", "isSecret": true } }
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([repoSettingsId, name])
+  @@index([repoSettingsId])
+}
+
+// Skills (slash commands) for a repository
+// Each skill is a SKILL.md file that defines a custom slash command for Claude
+model Skill {
+  id             String       @id @default(uuid())
+  repoSettingsId String
+  repoSettings   RepoSettings @relation(fields: [repoSettingsId], references: [id], onDelete: Cascade)
+  name           String // Skill name (used as directory name and slash command), e.g., "review-pr"
+  description    String       @default("") // Short description shown in autocomplete
+  content        String // The SKILL.md content (markdown with optional YAML frontmatter)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
